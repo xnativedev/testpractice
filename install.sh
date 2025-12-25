@@ -77,6 +77,16 @@ https.port=$HTTPS_PORT
 # -------- Optional (default OK) -----
 # http.address=0.0.0.0
 # https.address=0.0.0.0
+
+# -------- Admin Security --------
+# comma separated list of administrator IPs
+# 0.0.0.0/0 = allow all IPv4
+# ::/0      = allow all IPv6
+allowed.administrator.ips=0.0.0.0/0,::/0
+
+# -------- Default Admin (first start only) --------
+admin.email=admin@blynk.cc
+admin.pass=admin
 EOF
 
 chmod 644 "$DATA_DIR/server.properties"
@@ -144,3 +154,4 @@ echo "Port   = $HTTP_PORT"
 echo "SSL    = OFF"
 echo "Mode   = CUSTOM"
 echo "======================================"
+
