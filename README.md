@@ -7,8 +7,3 @@
   `sed -i 's/\r$//' install.sh`\
 > Last
   `./install.sh`
-## For public 
-`sudo ufw allow 8080/tcp`\
-`sudo ufw reload`
-
-
