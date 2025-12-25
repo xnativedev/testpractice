@@ -1,9 +1,9 @@
 # How to use :P
-> Download install.sh
+> 1.
   `wget https://raw.githubusercontent.com/xnativedev/testpractice/main/install.sh`\
-> Grant permission to install.sh
+> 2.
   `chmod +x install.sh`\
-> Carriage Return
+> 3.
   `sed -i 's/\r$//' install.sh`\
-> Last
+> 4.
   `./install.sh`
