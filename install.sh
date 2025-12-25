@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 BLYNK_USER="blynk"
 INSTALL_DIR="/opt/blynk"
@@ -8,8 +8,14 @@ PORT="8080"
 
 export DEBIAN_FRONTEND=noninteractive
 
+echo "== Pre-flight check =="
+if [ "$(id -u)" -ne 0 ]; then
+  echo "ERROR: Please run as root (use sudo)."
+  exit 1
+fi
+
 echo "== Set Timezone =="
-timedatectl set-timezone Asia/Bangkok
+timedatectl set-timezone Asia/Bangkok || true
 
 echo "== System update & upgrade =="
 apt update -y
@@ -21,9 +27,11 @@ apt install -y curl jq openjdk-11-jre-headless ufw
 echo "== Create user =="
 id "$BLYNK_USER" >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin "$BLYNK_USER"
 
-echo "== Create dirs =="
+echo "== Create dirs & permissions =="
 mkdir -p "$INSTALL_DIR" "$DATA_DIR"
 chown -R "$BLYNK_USER:$BLYNK_USER" "$DATA_DIR"
+# IMPORTANT: Blynk unpacks static files under WorkingDirectory (/opt/blynk/static)
+chown -R "$BLYNK_USER:$BLYNK_USER" "$INSTALL_DIR"
 
 echo "== Download Blynk server =="
 JSON="$(curl -s https://api.github.com/repos/Peterkn2001/blynk-server/releases/latest)"
@@ -36,28 +44,26 @@ fi
 
 curl -L "$JAR_URL" -o "$INSTALL_DIR/server.jar"
 chmod 644 "$INSTALL_DIR/server.jar"
+chown "$BLYNK_USER:$BLYNK_USER" "$INSTALL_DIR/server.jar"
 
-# IMPORTANT: allow blynk user to unpack static files to /opt/blynk/static
-chown -R "$BLYNK_USER:$BLYNK_USER" "$INSTALL_DIR"
-
-echo "== Create server.properties =="
+echo "== Write server.properties (HTTP only) =="
 cat > "$DATA_DIR/server.properties" <<EOF
 http.port=$PORT
-# http.address=0.0.0.0
+# NOTE: HTTPS disabled on purpose (no https.port here)
 EOF
-chown "$BLYNK_USER:$BLYNK_USER" "$DATA_DIR/server.properties"
 chmod 644 "$DATA_DIR/server.properties"
+chown "$BLYNK_USER:$BLYNK_USER" "$DATA_DIR/server.properties"
 
 echo "== Configure firewall (UFW) =="
-ufw allow ssh
-# LAN only (safer). If you want public access, use: ufw allow ${PORT}/tcp
-ufw allow from 192.168.0.0/16 to any port "$PORT" proto tcp
+ufw allow ssh || true
+ufw allow "$PORT"/tcp
 ufw --force enable
+ufw reload || true
 
 echo "== Create systemd service =="
 cat > /etc/systemd/system/blynk.service <<EOF
 [Unit]
-Description=Blynk Local Server (LAN)
+Description=Blynk Local Server (HTTP)
 After=network.target
 
 [Service]
@@ -77,11 +83,11 @@ systemctl daemon-reload
 systemctl enable --now blynk
 
 echo "== Status =="
-systemctl status blynk --no-pager
+systemctl status blynk --no-pager || true
 
 echo "== Listening ports =="
-ss -tulnp | grep ":$PORT" || true
+ss -tulnp | grep -E "(:$PORT\\b)" || true
 
 echo "== DONE =="
-echo "Open:  http://<SERVER_IP>:$PORT"
-echo "Admin: http://<SERVER_IP>:$PORT/admin"
+echo "HTTP:  http://<SERVER_IP>:$PORT"
+echo "Tip: In Blynk App set CUSTOM server IP and Port=$PORT, and DISABLE SSL/HTTPS."
