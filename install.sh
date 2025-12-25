@@ -21,12 +21,13 @@ apt install -y curl jq openjdk-11-jre-headless ufw
 echo "== Create user =="
 id "$BLYNK_USER" >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin "$BLYNK_USER"
 
+echo "== Create dirs =="
 mkdir -p "$INSTALL_DIR" "$DATA_DIR"
 chown -R "$BLYNK_USER:$BLYNK_USER" "$DATA_DIR"
 
 echo "== Download Blynk server =="
-JSON=$(curl -s https://api.github.com/repos/Peterkn2001/blynk-server/releases/latest)
-JAR_URL=$(echo "$JSON" | jq -r '.assets[] | select(.name|endswith(".jar")) | .browser_download_url' | head -n1)
+JSON="$(curl -s https://api.github.com/repos/Peterkn2001/blynk-server/releases/latest)"
+JAR_URL="$(echo "$JSON" | jq -r '.assets[] | select(.name|endswith(".jar")) | .browser_download_url' | head -n1)"
 
 if [ -z "$JAR_URL" ] || [ "$JAR_URL" = "null" ]; then
   echo "ERROR: Cannot find .jar in latest release assets."
@@ -36,10 +37,12 @@ fi
 curl -L "$JAR_URL" -o "$INSTALL_DIR/server.jar"
 chmod 644 "$INSTALL_DIR/server.jar"
 
+# IMPORTANT: allow blynk user to unpack static files to /opt/blynk/static
+chown -R "$BLYNK_USER:$BLYNK_USER" "$INSTALL_DIR"
+
 echo "== Create server.properties =="
 cat > "$DATA_DIR/server.properties" <<EOF
 http.port=$PORT
-# ถ้าต้องการให้ฟังทุก interface (ส่วนใหญ่ default ก็เป็นอยู่แล้ว)
 # http.address=0.0.0.0
 EOF
 chown "$BLYNK_USER:$BLYNK_USER" "$DATA_DIR/server.properties"
@@ -47,13 +50,14 @@ chmod 644 "$DATA_DIR/server.properties"
 
 echo "== Configure firewall (UFW) =="
 ufw allow ssh
-ufw allow $PORT/tcp
+# LAN only (safer). If you want public access, use: ufw allow ${PORT}/tcp
+ufw allow from 192.168.0.0/16 to any port "$PORT" proto tcp
 ufw --force enable
 
 echo "== Create systemd service =="
 cat > /etc/systemd/system/blynk.service <<EOF
 [Unit]
-Description=Blynk Local Server
+Description=Blynk Local Server (LAN)
 After=network.target
 
 [Service]
@@ -74,6 +78,9 @@ systemctl enable --now blynk
 
 echo "== Status =="
 systemctl status blynk --no-pager
+
+echo "== Listening ports =="
+ss -tulnp | grep ":$PORT" || true
 
 echo "== DONE =="
 echo "Open:  http://<SERVER_IP>:$PORT"
