@@ -7,5 +7,8 @@
   `sed -i 's/\r$//' install.sh`\
 > Last
   `./install.sh`
-## For public `ufw allow from 192.168.0.0/16 to any port "$PORT" proto tcp`
+## For public 
+`sudo ufw allow 8080/tcp`\
+`sudo ufw reload`
+
 
